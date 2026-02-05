@@ -1,0 +1,29 @@
+*.csv
+
+# Latex 
+*.log
+*.aux
+*.out
+*.pdf
+*.tex
+*.sty
+*.cls
+*.bst
+*.bbl
+*.blg
+*.idx
+*.ilg
+
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# bibliography
+*.bib
+*.bibtex
+*.biblatex
+*.bibtex.gz
+
+# extra
+*notes*
+*old*
