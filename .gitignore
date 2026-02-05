@@ -4,8 +4,6 @@
 *.log
 *.aux
 *.out
-*.pdf
-*.tex
 *.sty
 *.cls
 *.bst

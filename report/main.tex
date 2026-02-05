@@ -1,0 +1,94 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb}
+\usepackage{paralist}
+\usepackage{color}
+\usepackage[detect-weight=true, binary-units=true]{siunitx}
+\usepackage{pgfplots}
+\usepackage{authblk}
+\usepackage{url}
+\usepackage{multirow}
+\usepackage{booktabs}
+
+% the title can be shorter than this
+\title{Machine Learning project:\\Twitter Food Popularity}
+
+\author[1]{Andrea Spinelli}
+% if you need space, you can specify authors' contributions using a foot note
+% \affil[1]{
+%     problem statement,
+%     solution design,
+%     solution development,
+%     data gathering,
+%     writing
+% }
+\date{Course of AA $2025$-$2026$ - Scientific and Data Intensive Computing}
+
+
+
+\begin{document}
+
+\maketitle
+
+
+
+\section{Problem statement}
+
+% TODO: add problem statement
+
+Social Media Popularity Prediction - appetite appeal
+
+
+
+\section{Assessment and performance indexes}
+% TODO: add assessment and performance indexes
+
+
+
+\section{Proposed solution}
+% TODO: add proposed solution
+
+
+
+\section{Experimental evaluation}
+
+
+
+\subsection{Data}
+% TODO: add data
+
+
+
+\subsection{Procedure}
+% TODO: add Procedure
+
+
+
+\subsection{Results and discussion}
+% TODO: add results and discussion
+
+\begin{table}[]
+    \centering
+    \begin{tabular}{
+        c S[table-format = 3.0] |
+        S[table-format = 1.2] S[table-format = 1.2] S[table-format = 4.0] S[table-format = 1.2] S[table-format = 4]
+    }
+        \toprule
+        {$n_\text{this}$} & {$n_\text{that}$} & {LF} & {TF} & {\#I} & {\#S [$\times 10^6$]} & {$t_l$ [\si{\second}]}\\
+        \midrule
+        \multirow{3}{*}{50}
+        & 10 & 0.37 & 0.45 & 552 & 0.59 & 52 \\
+        & 25 & 0.43 & 0.44 & 3076 & 0.56 & 245 \\
+        & 50 & 0.45 & 0.43 & 637 & 0.64 & 715 \\
+        \bottomrule
+    \end{tabular}
+    \caption{
+        Results (including learning time $t_l$) for different values of $n_\text{this}$, $n_\text{that}$.
+    }
+    \label{tab:experiments}
+\end{table}
+
+% \bibliographystyle{plain}
+% \bibliography{bibliography}
+
+\end{document}
