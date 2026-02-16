@@ -37,7 +37,8 @@ cols = ['GAME_DATE_EST', 'GAME_ID', 'SEASON',
         'HOME_TEAM_ID', 'PTS_home', 'FG_PCT_home', 'FT_PCT_home', 'FG3_PCT_home', 'AST_home', 'REB_home', 'HOME_TEAM_WINS',
         'VISITOR_TEAM_ID', 'PTS_away', 'FG_PCT_away', 'FT_PCT_away', 'FG3_PCT_away', 'AST_away', 'REB_away']
 
-games = games[cols].sort_values(by=['GAME_DATE_EST'])
+# Drop duplicate rows in source data (e.g. 2020 COVID bubble duplicates in Kaggle dataset)
+games = games[cols].drop_duplicates(subset=['GAME_ID', 'HOME_TEAM_ID', 'VISITOR_TEAM_ID']).sort_values(by=['GAME_DATE_EST'])
 
 # Home Perspective
 home_df = games.copy()
@@ -80,17 +81,86 @@ games_log['B2B_TEAM'] = (games_log['REST_DAYS_TEAM'] == 1).astype(int)
 stat_cols = ['PTS', 'FG_PCT', 'FT_PCT', 'FG3_PCT', 'AST', 'REB', 'WL']
 
 # Shift(1) is CRITICAL to avoid data leakage
-rolled_stats = games_log.groupby(['TEAM_ID', 'SEASON'])[stat_cols].apply(
+rolled_stats_l5 = games_log.groupby(['TEAM_ID', 'SEASON'])[stat_cols].apply(
+    lambda x: x.shift(1).rolling(window=5, min_periods=2).mean()
+)
+rolled_stats_l5.columns = [f'{col}_L5' for col in stat_cols]
+
+rolled_stats_l10 = games_log.groupby(['TEAM_ID', 'SEASON'])[stat_cols].apply(
     lambda x: x.shift(1).rolling(window=10, min_periods=3).mean()
 )
-rolled_stats.columns = [f'{col}_L10' for col in stat_cols]
+rolled_stats_l10.columns = [f'{col}_L10' for col in stat_cols]
+
+# Win streak (pre-game): consecutive wins immediately before current game
+def _win_streak_pre_game(wl: pd.Series) -> pd.Series:
+    wl_prev = wl.shift(1).fillna(0).astype(int)
+    out = np.zeros(len(wl_prev), dtype=int)
+    streak = 0
+    for i, v in enumerate(wl_prev.values):
+        if v == 1:
+            streak += 1
+        else:
+            streak = 0
+        out[i] = streak
+    return pd.Series(out, index=wl.index)
+
+games_log['WIN_STREAK'] = games_log.groupby(['TEAM_ID', 'SEASON'])['WL'].transform(_win_streak_pre_game)
 
 # Align indexes before concatenation to avoid InvalidIndexError
 games_log = games_log.reset_index(drop=True)
-rolled_stats = rolled_stats.reset_index(drop=True)
+rolled_stats_l5 = rolled_stats_l5.reset_index(drop=True)
+rolled_stats_l10 = rolled_stats_l10.reset_index(drop=True)
 
-nba_ml_games = pd.concat([games_log, rolled_stats], axis=1).dropna()
-dataframes['nba_ml_games'] = nba_ml_games
+nba_ml_games = pd.concat([games_log, rolled_stats_l5, rolled_stats_l10], axis=1).dropna()
+dataframes['games'] = nba_ml_games
+
+# ------------------------------- Matchup Data (Individual + Differentials) ----------------------------------
+
+print(">>> Creating Matchup Data (Individual Stats + Differentials)...")
+
+df = nba_ml_games.copy()
+
+# 1. Split Home and Away
+df_home = df[df['IS_HOME'] == 1].copy()
+df_away = df[df['IS_HOME'] == 0].copy()
+
+# 2. Define columns to merge and calculate differences for
+# We want rolling stats (L5 + L10) plus rest/back-to-back and win streak
+stat_cols = [c for c in df.columns if ('_L5' in c or '_L10' in c)] + ['REST_DAYS_TEAM', 'B2B_TEAM', 'WIN_STREAK']
+
+# 3. Rename Away columns to avoid collision during merge
+away_rename = {col: f"{col}_OPP" for col in stat_cols}
+away_rename['TEAM_ID'] = 'TEAM_ID_OPP'
+df_away = df_away.rename(columns=away_rename)
+
+# 4. Merge on GAME_ID (keeping both home and away stats)
+nba_ml_matchups = pd.merge(
+    df_home, 
+    df_away[['GAME_ID'] + list(away_rename.values())], 
+    on='GAME_ID', 
+    how='inner'
+)
+
+# 5. Calculate Differentials (Home - Away) for all stat columns
+diff_features = []
+for col in stat_cols:
+    diff_col = f"{col}_DIFF"
+    nba_ml_matchups[diff_col] = nba_ml_matchups[col] - nba_ml_matchups[f"{col}_OPP"]
+    diff_features.append(diff_col)
+
+# 6. Select final columns: Info + Individual Home Stats + Opponent Stats + Differentials
+# IS_HOME is omitted: it's always 1 in the matchup (every row is home team POV)
+info_cols = ['GAME_DATE_EST', 'GAME_ID', 'SEASON', 'HOME_TEAM_ID', 'OPP_TEAM_ID', 'WL']
+home_stat_cols = stat_cols  # Individual home team stats
+opp_stat_cols = [f"{col}_OPP" for col in stat_cols]  # Opponent stats
+
+# Final dataset has: info + home stats + opponent stats + differentials
+final_matchup_cols = info_cols + home_stat_cols + opp_stat_cols + diff_features
+
+nba_ml_matchups = nba_ml_matchups[final_matchup_cols]
+
+# Add to dataframes dictionary to be saved
+dataframes['matchups'] = nba_ml_matchups
 
 # ------------------------------- Player Impact ----------------------------------
 print(">>> Calculating Player Impact (Target Generation)...")
@@ -237,7 +307,7 @@ per_helper_cols = [
 ]
 details = details.drop(columns=[c for c in per_helper_cols if c in details.columns])
 
-dataframes['nba_ml_details'] = details
+dataframes['details'] = details
 
 # ------------------------------------- Save -------------------------------------
 print(">>> Saving to Disk...")
